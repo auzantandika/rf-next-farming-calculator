@@ -121,9 +121,7 @@ npx vercel --prod
 
 ## Production Website
 
-After deployment, the production URL will be listed here:
-
-- Production URL: _(set after Vercel deploy)_
+- Production URL: https://rf-next-farming-calculator.vercel.app
 - Vercel project name: `rf-next-farming-calculator`
 
 ## Known Limitations
