@@ -63,18 +63,22 @@ export function GuidePage() {
         <h2>Getting Per-Kill Values</h2>
         <ul className="detail-list">
           <li>
-            <strong>Credit / Faction Coin</strong> — wallet shows point totals.
-            Use Starting/Ending points + Total Kills → Derive Per Kill.
+            <strong>Credit</strong> — wallet shows point totals. Use
+            Starting/Ending Credit + Total Kills → Derive Per Kill.
           </li>
           <li>
-            <strong>EXP points</strong> — take the number from the kill popup
-            (for example 21,710) into EXP per Kill. The HUD bar only shows %.
+            <strong>EXP / Faction Coin points</strong> — take numbers from the
+            kill popup into EXP per Kill and Faction Coin per Kill.
           </li>
           <li>
-            <strong>EXP %</strong> — optional Starting/Ending EXP % from the HUD
-            bar measures average % per kill and progress toward the next level.
-            Percent alone cannot become EXP points without the level’s total EXP
-            table.
+            <strong>EXP %</strong> — HUD bar (for example 30.1631%) measures
+            average % per kill. Percent alone cannot become EXP points without
+            the level’s total EXP table.
+          </li>
+          <li>
+            <strong>Contribution %</strong> — same idea as EXP: use the
+            Contribution Lv. xx(yy.y%) bar before/after farming. This tracks
+            contribution progress; Faction Coin per hour still uses popup points.
           </li>
           <li>
             There is no free official RF Online Next API for live monster tables,

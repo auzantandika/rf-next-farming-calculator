@@ -60,8 +60,10 @@ export interface SessionCostInputs {
   startingExpPercent: number | null
   /** HUD EXP bar percent after the farm window. */
   endingExpPercent: number | null
-  startingFactionCoin: number | null
-  endingFactionCoin: number | null
+  /** Contribution level bar percent (e.g. 35.5), not Faction Coin points. */
+  startingContributionPercent: number | null
+  /** Contribution bar percent after the farm window. */
+  endingContributionPercent: number | null
   potionCost: number | null
   consumableCost: number | null
   otherCosts: number | null
@@ -103,7 +105,10 @@ export interface SessionResults {
   expPercentGained: number | null
   /** Average HUD % gained per kill, when kills are known. */
   expPercentPerKill: number | null
-  factionCoinEarned: number | null
+  /** Contribution bar percent gained (HUD %), not Faction Coin points. */
+  contributionPercentGained: number | null
+  /** Average Contribution % gained per kill, when kills are known. */
+  contributionPercentPerKill: number | null
   lootValue: number
   totalCosts: number
   netCredit: number | null

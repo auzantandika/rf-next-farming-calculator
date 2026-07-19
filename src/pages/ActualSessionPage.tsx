@@ -7,7 +7,7 @@ import {
   VERIFICATION_LABELS,
   calculateRates,
   calculateSessionResults,
-  deriveExpPercentPerKill,
+  deriveHudPercentPerKill,
   derivePerKillFromTotals,
   earnedDelta,
 } from '../lib/calculations'
@@ -38,8 +38,8 @@ const emptyForm: SessionFormState = {
   endingCredit: null,
   startingExpPercent: null,
   endingExpPercent: null,
-  startingFactionCoin: null,
-  endingFactionCoin: null,
+  startingContributionPercent: null,
+  endingContributionPercent: null,
   potionCost: null,
   consumableCost: null,
   otherCosts: null,
@@ -92,8 +92,8 @@ export function ActualSessionPage({
     endingCredit: form.endingCredit,
     startingExpPercent: form.startingExpPercent,
     endingExpPercent: form.endingExpPercent,
-    startingFactionCoin: form.startingFactionCoin,
-    endingFactionCoin: form.endingFactionCoin,
+    startingContributionPercent: form.startingContributionPercent,
+    endingContributionPercent: form.endingContributionPercent,
     potionCost: form.potionCost,
     consumableCost: form.consumableCost,
     otherCosts: form.otherCosts,
@@ -108,20 +108,21 @@ export function ActualSessionPage({
   const handleDerivePerKill = () => {
     const derived = derivePerKillFromTotals(form.totalKills, {
       creditEarned: earnedDelta(form.startingCredit, form.endingCredit),
-      factionCoinEarned: earnedDelta(
-        form.startingFactionCoin,
-        form.endingFactionCoin,
-      ),
     })
-    const percentPerKill = deriveExpPercentPerKill(
+    const expPct = deriveHudPercentPerKill(
       form.totalKills,
       form.startingExpPercent,
       form.endingExpPercent,
     )
+    const contributionPct = deriveHudPercentPerKill(
+      form.totalKills,
+      form.startingContributionPercent,
+      form.endingContributionPercent,
+    )
 
-    if (!derived && percentPerKill == null) {
+    if (!derived && expPct == null && contributionPct == null) {
       onToast(
-        'Enter Total Kills plus Credit/FC wallet points, and/or EXP % before and after.',
+        'Enter Total Kills plus Credit points, and/or EXP % / Contribution % before and after.',
       )
       return
     }
@@ -130,8 +131,6 @@ export function ActualSessionPage({
       setForm((prev) => ({
         ...prev,
         creditPerKill: derived.creditPerKill ?? prev.creditPerKill,
-        factionCoinPerKill:
-          derived.factionCoinPerKill ?? prev.factionCoinPerKill,
         rewardsIncludeBuffs: true,
         expBonusPercent: 0,
       }))
@@ -139,11 +138,12 @@ export function ActualSessionPage({
 
     setShowResults(false)
     const parts: string[] = []
-    if (derived) parts.push(`${derived.derivedCount} wallet average(s)`)
-    if (percentPerKill != null) {
-      parts.push(`${formatDecimal(percentPerKill, 4)}% EXP per kill`)
+    if (derived) parts.push('Credit average')
+    if (expPct != null) parts.push(`${formatDecimal(expPct, 4)}% EXP/kill`)
+    if (contributionPct != null) {
+      parts.push(`${formatDecimal(contributionPct, 4)}% Contribution/kill`)
     }
-    parts.push('EXP points still come from the kill popup')
+    parts.push('EXP & Faction Coin points still come from the kill popup')
     onToast(`Derived ${parts.join(' · ')}.`)
   }
 
@@ -281,9 +281,9 @@ export function ActualSessionPage({
           </button>
         </div>
         <p className="muted">
-          Credit and Faction Coin use wallet point balances. EXP uses the HUD
-          percent bar (for example 30.1631%). EXP points for hourly rates still
-          come from the kill popup into EXP per Kill.
+          Credit uses wallet points. EXP and Contribution use HUD percent bars
+          (for example Contribution Lv. 58(35.5%)). Hourly EXP / Faction Coin
+          still use kill-popup points in the Rewards fields.
         </p>
         <div className="grid-2">
           <NumberField
@@ -297,20 +297,6 @@ export function ActualSessionPage({
             label="Ending Credit (points)"
             value={form.endingCredit}
             onChange={(v) => setForm((p) => ({ ...p, endingCredit: v }))}
-          />
-          <NumberField
-            id="session-start-fc"
-            label="Starting Faction Coin (points)"
-            value={form.startingFactionCoin}
-            onChange={(v) =>
-              setForm((p) => ({ ...p, startingFactionCoin: v }))
-            }
-          />
-          <NumberField
-            id="session-end-fc"
-            label="Ending Faction Coin (points)"
-            value={form.endingFactionCoin}
-            onChange={(v) => setForm((p) => ({ ...p, endingFactionCoin: v }))}
           />
           <NumberField
             id="session-start-exp-pct"
@@ -329,6 +315,28 @@ export function ActualSessionPage({
             mode="decimal"
             placeholder="32.1631"
             hint="HUD EXP bar percent after farming"
+          />
+          <NumberField
+            id="session-start-contrib-pct"
+            label="Starting Contribution %"
+            value={form.startingContributionPercent}
+            onChange={(v) =>
+              setForm((p) => ({ ...p, startingContributionPercent: v }))
+            }
+            mode="decimal"
+            placeholder="35.5"
+            hint="From Contribution Lv. xx(yy.y%)"
+          />
+          <NumberField
+            id="session-end-contrib-pct"
+            label="Ending Contribution %"
+            value={form.endingContributionPercent}
+            onChange={(v) =>
+              setForm((p) => ({ ...p, endingContributionPercent: v }))
+            }
+            mode="decimal"
+            placeholder="37.5"
+            hint="Same Contribution bar after farming"
           />
         </div>
       </section>
@@ -460,9 +468,15 @@ export function ActualSessionPage({
               </p>
             </article>
             <article className="stat">
-              <h3>Faction Coin Earned</h3>
+              <h3>Contribution % Gained</h3>
               <p className="stat-value">
-                {formatInteger(sessionResults.factionCoinEarned)}
+                {formatDecimal(sessionResults.contributionPercentGained, 4)}%
+              </p>
+            </article>
+            <article className="stat">
+              <h3>Contribution % per Kill</h3>
+              <p className="stat-value">
+                {formatDecimal(sessionResults.contributionPercentPerKill, 4)}%
               </p>
             </article>
             <article className="stat">

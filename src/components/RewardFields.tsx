@@ -76,7 +76,8 @@ export function RewardFields({
             onChange={(v) =>
               onRewardsChange({ ...rewards, factionCoinPerKill: v })
             }
-            placeholder="6,590"
+            placeholder="6,050"
+            hint="Kill popup points, not Contribution Lv. bar %"
           />
           <NumberField
             id={`${idPrefix}-exp-bonus`}

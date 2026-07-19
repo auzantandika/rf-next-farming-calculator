@@ -32,18 +32,16 @@ export function effectiveExpPerKill(rewards: RewardInputs): number | null {
 }
 
 /**
- * Average Credit / Faction Coin per kill from wallet point totals.
- * EXP points cannot be derived from the HUD % bar — use the kill popup for that.
+ * Average Credit per kill from wallet point totals.
+ * EXP / Contribution points cannot be derived from HUD % bars — use the kill popup.
  */
 export function derivePerKillFromTotals(
   totalKills: number | null | undefined,
   earned: {
     creditEarned: number | null | undefined
-    factionCoinEarned: number | null | undefined
   },
 ): {
   creditPerKill: number | null
-  factionCoinPerKill: number | null
   derivedCount: number
 } | null {
   if (totalKills == null || !Number.isFinite(totalKills) || totalKills <= 0) {
@@ -56,30 +54,24 @@ export function derivePerKillFromTotals(
   }
 
   const creditPerKill = average(earned.creditEarned)
-  const factionCoinPerKill = average(earned.factionCoinEarned)
-  const derivedCount = [creditPerKill, factionCoinPerKill].filter(
-    (v) => v != null,
-  ).length
-
-  if (derivedCount === 0) return null
+  if (creditPerKill == null) return null
 
   return {
     creditPerKill,
-    factionCoinPerKill,
-    derivedCount,
+    derivedCount: 1,
   }
 }
 
-/** Average HUD EXP % gained per kill from before/after bar readings. */
-export function deriveExpPercentPerKill(
+/** Average HUD % gained per kill from before/after bar readings (EXP or Contribution). */
+export function deriveHudPercentPerKill(
   totalKills: number | null | undefined,
-  startingExpPercent: number | null | undefined,
-  endingExpPercent: number | null | undefined,
+  startingPercent: number | null | undefined,
+  endingPercent: number | null | undefined,
 ): number | null {
   if (totalKills == null || !Number.isFinite(totalKills) || totalKills <= 0) {
     return null
   }
-  const gained = earnedDelta(startingExpPercent, endingExpPercent)
+  const gained = earnedDelta(startingPercent, endingPercent)
   if (gained == null || gained < 0) return null
   const perKill = gained / totalKills
   return Number.isFinite(perKill) ? perKill : null
@@ -219,14 +211,19 @@ export function calculateSessionResults(
     session.startingExpPercent,
     session.endingExpPercent,
   )
-  const expPercentPerKill = deriveExpPercentPerKill(
+  const expPercentPerKill = deriveHudPercentPerKill(
     testData.totalKills,
     session.startingExpPercent,
     session.endingExpPercent,
   )
-  const factionCoinEarned = earnedDelta(
-    session.startingFactionCoin,
-    session.endingFactionCoin,
+  const contributionPercentGained = earnedDelta(
+    session.startingContributionPercent,
+    session.endingContributionPercent,
+  )
+  const contributionPercentPerKill = deriveHudPercentPerKill(
+    testData.totalKills,
+    session.startingContributionPercent,
+    session.endingContributionPercent,
   )
 
   const lootValue = lootValueTotal(session.lootDrops)
@@ -245,14 +242,15 @@ export function calculateSessionResults(
     rates,
     rewards,
     testData,
-    { creditEarned, factionCoinEarned },
+    { creditEarned },
   )
 
   return {
     creditEarned,
     expPercentGained,
     expPercentPerKill,
-    factionCoinEarned,
+    contributionPercentGained,
+    contributionPercentPerKill,
     lootValue,
     totalCosts,
     netCredit,
@@ -268,7 +266,6 @@ function verifySession(
   testData: TestDataInputs,
   earned: {
     creditEarned: number | null
-    factionCoinEarned: number | null
   },
 ): { verification: VerificationStatus; verificationNote: string } {
   const kills = testData.totalKills
@@ -280,8 +277,8 @@ function verifySession(
     }
   }
 
-  // EXP is verified via kill-popup points vs rates, not HUD %, because the
-  // bar only exposes percent and total EXP-for-level is unknown offline.
+  // EXP / Contribution HUD bars are %, so only Credit wallet points are
+  // compared here. Faction Coin points come from the kill popup field.
   const checks: Array<{
     label: string
     expected: number | null
@@ -294,14 +291,6 @@ function verifySession(
           ? null
           : rewards.creditPerKill * kills,
       actual: earned.creditEarned,
-    },
-    {
-      label: 'Faction Coin',
-      expected:
-        rewards.factionCoinPerKill == null
-          ? null
-          : rewards.factionCoinPerKill * kills,
-      actual: earned.factionCoinEarned,
     },
   ]
 

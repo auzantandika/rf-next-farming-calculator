@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   calculateRates,
-  deriveExpPercentPerKill,
+  deriveHudPercentPerKill,
   derivePerKillFromTotals,
 } from './calculations'
 
@@ -29,23 +29,26 @@ describe('calculateRates', () => {
 })
 
 describe('derivePerKillFromTotals', () => {
-  it('averages wallet point gains for Credit and Faction Coin', () => {
+  it('averages wallet point gains for Credit only', () => {
     const derived = derivePerKillFromTotals(200, {
       creditEarned: 123400,
-      factionCoinEarned: 1318000,
     })
 
     expect(derived).toEqual({
       creditPerKill: 617,
-      factionCoinPerKill: 6590,
-      derivedCount: 2,
+      derivedCount: 1,
     })
   })
 })
 
-describe('deriveExpPercentPerKill', () => {
+describe('deriveHudPercentPerKill', () => {
   it('averages HUD EXP percent gain across kills', () => {
-    const perKill = deriveExpPercentPerKill(10, 30.1631, 30.2631)
+    const perKill = deriveHudPercentPerKill(10, 30.1631, 30.2631)
     expect(perKill).toBeCloseTo(0.01, 5)
+  })
+
+  it('averages Contribution percent gain across kills', () => {
+    const perKill = deriveHudPercentPerKill(10, 35.5, 36.5)
+    expect(perKill).toBeCloseTo(0.1, 5)
   })
 })
