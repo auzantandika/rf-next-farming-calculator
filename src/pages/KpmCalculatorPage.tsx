@@ -6,10 +6,12 @@ import { NumberField } from '../components/NumberField'
 import {
   calculateProjection,
   calculateRates,
+  deriveExpPercentPerKill,
   derivePerKillFromTotals,
   earnedDelta,
 } from '../lib/calculations'
 import { buildKpmSummary, copyText } from '../lib/copySummary'
+import { formatDecimal } from '../lib/numbers'
 import { sampleKpmForm } from '../lib/sampleData'
 import { newId } from '../lib/storage'
 import type { KpmFormState, SavedSession } from '../types'
@@ -41,8 +43,8 @@ const emptyForm: KpmFormState = {
 interface DeriveWallet {
   startingCredit: number | null
   endingCredit: number | null
-  startingExp: number | null
-  endingExp: number | null
+  startingExpPercent: number | null
+  endingExpPercent: number | null
   startingFactionCoin: number | null
   endingFactionCoin: number | null
 }
@@ -50,8 +52,8 @@ interface DeriveWallet {
 const emptyWallet: DeriveWallet = {
   startingCredit: null,
   endingCredit: null,
-  startingExp: null,
-  endingExp: null,
+  startingExpPercent: null,
+  endingExpPercent: null,
   startingFactionCoin: null,
   endingFactionCoin: null,
 }
@@ -64,6 +66,9 @@ interface KpmCalculatorPageProps {
 export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
   const [form, setForm] = useState<KpmFormState>(emptyForm)
   const [wallet, setWallet] = useState<DeriveWallet>(emptyWallet)
+  const [expPercentPerKill, setExpPercentPerKill] = useState<number | null>(
+    null,
+  )
   const [calculated, setCalculated] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -127,33 +132,47 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
   const handleDerivePerKill = () => {
     const derived = derivePerKillFromTotals(form.totalKills, {
       creditEarned: earnedDelta(wallet.startingCredit, wallet.endingCredit),
-      expEarned: earnedDelta(wallet.startingExp, wallet.endingExp),
       factionCoinEarned: earnedDelta(
         wallet.startingFactionCoin,
         wallet.endingFactionCoin,
       ),
     })
+    const percentPerKill = deriveExpPercentPerKill(
+      form.totalKills,
+      wallet.startingExpPercent,
+      wallet.endingExpPercent,
+    )
 
-    if (!derived) {
+    if (!derived && percentPerKill == null) {
       onToast(
-        'Enter Total Kills plus starting/ending wallet values to derive per-kill rewards.',
+        'Enter Total Kills plus Credit/FC wallet points, and/or EXP % before and after.',
       )
       return
     }
 
-    setForm((prev) => ({
-      ...prev,
-      creditPerKill: derived.creditPerKill ?? prev.creditPerKill,
-      expPerKill: derived.expPerKill ?? prev.expPerKill,
-      factionCoinPerKill:
-        derived.factionCoinPerKill ?? prev.factionCoinPerKill,
-      rewardsIncludeBuffs: true,
-      expBonusPercent: 0,
-    }))
+    if (derived) {
+      setForm((prev) => ({
+        ...prev,
+        creditPerKill: derived.creditPerKill ?? prev.creditPerKill,
+        factionCoinPerKill:
+          derived.factionCoinPerKill ?? prev.factionCoinPerKill,
+        rewardsIncludeBuffs: true,
+        expBonusPercent: 0,
+      }))
+    }
+
+    setExpPercentPerKill(percentPerKill)
     setCalculated(false)
-    onToast(
-      `Derived ${derived.derivedCount} per-kill value(s) from session averages.`,
-    )
+
+    const parts: string[] = []
+    if (derived) {
+      parts.push(`${derived.derivedCount} wallet average(s)`)
+    }
+    if (percentPerKill != null) {
+      parts.push(`${formatDecimal(percentPerKill, 4)}% EXP per kill`)
+    }
+    parts.push('EXP points still come from the kill popup')
+    onToast(`Derived ${parts.join(' · ')}.`)
   }
 
   const handleSave = () => {
@@ -207,6 +226,7 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
         onClick={() => {
           setForm(emptyForm)
           setWallet(emptyWallet)
+          setExpPercentPerKill(null)
           setCalculated(false)
           setError(null)
         }}
@@ -266,38 +286,27 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
           </button>
         </div>
         <p className="muted">
-          More precise than typing one kill by hand: note wallet before/after a
-          clean farm window, then divide by Total Kills. No game API required —
-          this app stays fully offline.
+          Credit and Faction Coin use wallet <strong>point</strong> totals.
+          EXP on the HUD is a <strong>percent</strong> bar, so enter EXP %
+          here only to measure % per kill. For EXP points / hour, copy the
+          number from the kill popup into EXP per Kill (for example 21,710).
         </p>
         <div className="grid-2">
           <NumberField
             id="kpm-start-credit"
-            label="Starting Credit"
+            label="Starting Credit (points)"
             value={wallet.startingCredit}
             onChange={(v) => setWallet((p) => ({ ...p, startingCredit: v }))}
           />
           <NumberField
             id="kpm-end-credit"
-            label="Ending Credit"
+            label="Ending Credit (points)"
             value={wallet.endingCredit}
             onChange={(v) => setWallet((p) => ({ ...p, endingCredit: v }))}
           />
           <NumberField
-            id="kpm-start-exp"
-            label="Starting EXP"
-            value={wallet.startingExp}
-            onChange={(v) => setWallet((p) => ({ ...p, startingExp: v }))}
-          />
-          <NumberField
-            id="kpm-end-exp"
-            label="Ending EXP"
-            value={wallet.endingExp}
-            onChange={(v) => setWallet((p) => ({ ...p, endingExp: v }))}
-          />
-          <NumberField
             id="kpm-start-fc"
-            label="Starting Faction Coin"
+            label="Starting Faction Coin (points)"
             value={wallet.startingFactionCoin}
             onChange={(v) =>
               setWallet((p) => ({ ...p, startingFactionCoin: v }))
@@ -305,13 +314,42 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
           />
           <NumberField
             id="kpm-end-fc"
-            label="Ending Faction Coin"
+            label="Ending Faction Coin (points)"
             value={wallet.endingFactionCoin}
             onChange={(v) =>
               setWallet((p) => ({ ...p, endingFactionCoin: v }))
             }
           />
+          <NumberField
+            id="kpm-start-exp-pct"
+            label="Starting EXP %"
+            value={wallet.startingExpPercent}
+            onChange={(v) =>
+              setWallet((p) => ({ ...p, startingExpPercent: v }))
+            }
+            mode="decimal"
+            placeholder="30.1631"
+            hint="From the HUD EXP bar, not kill popup points"
+          />
+          <NumberField
+            id="kpm-end-exp-pct"
+            label="Ending EXP %"
+            value={wallet.endingExpPercent}
+            onChange={(v) =>
+              setWallet((p) => ({ ...p, endingExpPercent: v }))
+            }
+            mode="decimal"
+            placeholder="32.1631"
+            hint="Same bar after your farm window"
+          />
         </div>
+        {expPercentPerKill != null ? (
+          <p className="banner notice-inline">
+            Average EXP bar gain: {formatDecimal(expPercentPerKill, 4)}% per
+            kill. This does not fill EXP per Kill points — use the kill popup
+            for that.
+          </p>
+        ) : null}
       </section>
 
       <section className="panel">

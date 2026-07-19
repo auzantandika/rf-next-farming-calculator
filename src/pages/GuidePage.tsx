@@ -63,21 +63,22 @@ export function GuidePage() {
         <h2>Getting Per-Kill Values</h2>
         <ul className="detail-list">
           <li>
-            <strong>Manual</strong> — read Credit / EXP / Faction Coin from one
-            kill popup. Fast, but one kill can be off if rewards vary.
+            <strong>Credit / Faction Coin</strong> — wallet shows point totals.
+            Use Starting/Ending points + Total Kills → Derive Per Kill.
           </li>
           <li>
-            <strong>Derive Per Kill (recommended)</strong> — note Starting and
-            Ending wallet values for a clean farm window, enter Total Kills, then
-            press Derive Per Kill. The app fills averages as earned ÷ kills.
+            <strong>EXP points</strong> — take the number from the kill popup
+            (for example 21,710) into EXP per Kill. The HUD bar only shows %.
+          </li>
+          <li>
+            <strong>EXP %</strong> — optional Starting/Ending EXP % from the HUD
+            bar measures average % per kill and progress toward the next level.
+            Percent alone cannot become EXP points without the level’s total EXP
+            table.
           </li>
           <li>
             There is no free official RF Online Next API for live monster tables,
             so this calculator stays offline and uses your measured session data.
-          </li>
-          <li>
-            Longer clean windows (more kills, same monster type) give a more
-            stable average than a single kill.
           </li>
         </ul>
       </section>

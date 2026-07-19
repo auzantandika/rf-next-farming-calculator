@@ -406,6 +406,13 @@ p {
   border: 1px solid rgba(224, 180, 92, 0.4);
 }
 
+.banner.notice-inline {
+  margin-top: 0.85rem;
+  margin-bottom: 0;
+  background: rgba(120, 196, 160, 0.1);
+  border: 1px solid rgba(120, 196, 160, 0.35);
+}
+
 .verify {
   margin-top: 1rem;
   padding: 0.85rem 0.95rem;

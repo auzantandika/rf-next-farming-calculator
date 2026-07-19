@@ -56,8 +56,10 @@ export interface KpmFormState extends SpotInfo, RewardInputs, TestDataInputs {
 export interface SessionCostInputs {
   startingCredit: number | null
   endingCredit: number | null
-  startingExp: number | null
-  endingExp: number | null
+  /** HUD EXP bar percent (e.g. 30.1631), not raw EXP points. */
+  startingExpPercent: number | null
+  /** HUD EXP bar percent after the farm window. */
+  endingExpPercent: number | null
   startingFactionCoin: number | null
   endingFactionCoin: number | null
   potionCost: number | null
@@ -97,7 +99,10 @@ export interface ProjectionResults {
 
 export interface SessionResults {
   creditEarned: number | null
-  expEarned: number | null
+  /** Level-bar percent gained during the session (HUD %), not EXP points. */
+  expPercentGained: number | null
+  /** Average HUD % gained per kill, when kills are known. */
+  expPercentPerKill: number | null
   factionCoinEarned: number | null
   lootValue: number
   totalCosts: number

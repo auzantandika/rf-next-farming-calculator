@@ -31,17 +31,18 @@ export function effectiveExpPerKill(rewards: RewardInputs): number | null {
   return base * (1 + bonus / 100)
 }
 
-/** Average reward per kill from wallet deltas. More kills = more stable average. */
+/**
+ * Average Credit / Faction Coin per kill from wallet point totals.
+ * EXP points cannot be derived from the HUD % bar — use the kill popup for that.
+ */
 export function derivePerKillFromTotals(
   totalKills: number | null | undefined,
   earned: {
     creditEarned: number | null | undefined
-    expEarned: number | null | undefined
     factionCoinEarned: number | null | undefined
   },
 ): {
   creditPerKill: number | null
-  expPerKill: number | null
   factionCoinPerKill: number | null
   derivedCount: number
 } | null {
@@ -55,9 +56,8 @@ export function derivePerKillFromTotals(
   }
 
   const creditPerKill = average(earned.creditEarned)
-  const expPerKill = average(earned.expEarned)
   const factionCoinPerKill = average(earned.factionCoinEarned)
-  const derivedCount = [creditPerKill, expPerKill, factionCoinPerKill].filter(
+  const derivedCount = [creditPerKill, factionCoinPerKill].filter(
     (v) => v != null,
   ).length
 
@@ -65,10 +65,24 @@ export function derivePerKillFromTotals(
 
   return {
     creditPerKill,
-    expPerKill,
     factionCoinPerKill,
     derivedCount,
   }
+}
+
+/** Average HUD EXP % gained per kill from before/after bar readings. */
+export function deriveExpPercentPerKill(
+  totalKills: number | null | undefined,
+  startingExpPercent: number | null | undefined,
+  endingExpPercent: number | null | undefined,
+): number | null {
+  if (totalKills == null || !Number.isFinite(totalKills) || totalKills <= 0) {
+    return null
+  }
+  const gained = earnedDelta(startingExpPercent, endingExpPercent)
+  if (gained == null || gained < 0) return null
+  const perKill = gained / totalKills
+  return Number.isFinite(perKill) ? perKill : null
 }
 
 export function earnedDelta(
@@ -201,7 +215,15 @@ export function calculateSessionResults(
 ): SessionResults {
   const rates = calculateRates(testData, rewards)
   const creditEarned = earnedDelta(session.startingCredit, session.endingCredit)
-  const expEarned = earnedDelta(session.startingExp, session.endingExp)
+  const expPercentGained = earnedDelta(
+    session.startingExpPercent,
+    session.endingExpPercent,
+  )
+  const expPercentPerKill = deriveExpPercentPerKill(
+    testData.totalKills,
+    session.startingExpPercent,
+    session.endingExpPercent,
+  )
   const factionCoinEarned = earnedDelta(
     session.startingFactionCoin,
     session.endingFactionCoin,
@@ -223,12 +245,13 @@ export function calculateSessionResults(
     rates,
     rewards,
     testData,
-    { creditEarned, expEarned, factionCoinEarned },
+    { creditEarned, factionCoinEarned },
   )
 
   return {
     creditEarned,
-    expEarned,
+    expPercentGained,
+    expPercentPerKill,
     factionCoinEarned,
     lootValue,
     totalCosts,
@@ -245,7 +268,6 @@ function verifySession(
   testData: TestDataInputs,
   earned: {
     creditEarned: number | null
-    expEarned: number | null
     factionCoinEarned: number | null
   },
 ): { verification: VerificationStatus; verificationNote: string } {
@@ -258,6 +280,8 @@ function verifySession(
     }
   }
 
+  // EXP is verified via kill-popup points vs rates, not HUD %, because the
+  // bar only exposes percent and total EXP-for-level is unknown offline.
   const checks: Array<{
     label: string
     expected: number | null
@@ -270,14 +294,6 @@ function verifySession(
           ? null
           : rewards.creditPerKill * kills,
       actual: earned.creditEarned,
-    },
-    {
-      label: 'EXP',
-      expected:
-        rates.effectiveExpPerKill > 0
-          ? rates.effectiveExpPerKill * kills
-          : null,
-      actual: earned.expEarned,
     },
     {
       label: 'Faction Coin',

@@ -7,11 +7,12 @@ import {
   VERIFICATION_LABELS,
   calculateRates,
   calculateSessionResults,
+  deriveExpPercentPerKill,
   derivePerKillFromTotals,
   earnedDelta,
 } from '../lib/calculations'
 import { buildSessionSummary, copyText } from '../lib/copySummary'
-import { formatInteger } from '../lib/numbers'
+import { formatDecimal, formatInteger } from '../lib/numbers'
 import { sampleSessionForm } from '../lib/sampleData'
 import { newId } from '../lib/storage'
 import type { LootDrop, SavedSession, SessionFormState } from '../types'
@@ -35,8 +36,8 @@ const emptyForm: SessionFormState = {
   rewardsIncludeBuffs: true,
   startingCredit: null,
   endingCredit: null,
-  startingExp: null,
-  endingExp: null,
+  startingExpPercent: null,
+  endingExpPercent: null,
   startingFactionCoin: null,
   endingFactionCoin: null,
   potionCost: null,
@@ -89,8 +90,8 @@ export function ActualSessionPage({
   const sessionCosts = {
     startingCredit: form.startingCredit,
     endingCredit: form.endingCredit,
-    startingExp: form.startingExp,
-    endingExp: form.endingExp,
+    startingExpPercent: form.startingExpPercent,
+    endingExpPercent: form.endingExpPercent,
     startingFactionCoin: form.startingFactionCoin,
     endingFactionCoin: form.endingFactionCoin,
     potionCost: form.potionCost,
@@ -107,33 +108,43 @@ export function ActualSessionPage({
   const handleDerivePerKill = () => {
     const derived = derivePerKillFromTotals(form.totalKills, {
       creditEarned: earnedDelta(form.startingCredit, form.endingCredit),
-      expEarned: earnedDelta(form.startingExp, form.endingExp),
       factionCoinEarned: earnedDelta(
         form.startingFactionCoin,
         form.endingFactionCoin,
       ),
     })
+    const percentPerKill = deriveExpPercentPerKill(
+      form.totalKills,
+      form.startingExpPercent,
+      form.endingExpPercent,
+    )
 
-    if (!derived) {
+    if (!derived && percentPerKill == null) {
       onToast(
-        'Enter Total Kills plus starting/ending wallet values to derive per-kill rewards.',
+        'Enter Total Kills plus Credit/FC wallet points, and/or EXP % before and after.',
       )
       return
     }
 
-    setForm((prev) => ({
-      ...prev,
-      creditPerKill: derived.creditPerKill ?? prev.creditPerKill,
-      expPerKill: derived.expPerKill ?? prev.expPerKill,
-      factionCoinPerKill:
-        derived.factionCoinPerKill ?? prev.factionCoinPerKill,
-      rewardsIncludeBuffs: true,
-      expBonusPercent: 0,
-    }))
+    if (derived) {
+      setForm((prev) => ({
+        ...prev,
+        creditPerKill: derived.creditPerKill ?? prev.creditPerKill,
+        factionCoinPerKill:
+          derived.factionCoinPerKill ?? prev.factionCoinPerKill,
+        rewardsIncludeBuffs: true,
+        expBonusPercent: 0,
+      }))
+    }
+
     setShowResults(false)
-    onToast(
-      `Derived ${derived.derivedCount} per-kill value(s) from session averages.`,
-    )
+    const parts: string[] = []
+    if (derived) parts.push(`${derived.derivedCount} wallet average(s)`)
+    if (percentPerKill != null) {
+      parts.push(`${formatDecimal(percentPerKill, 4)}% EXP per kill`)
+    }
+    parts.push('EXP points still come from the kill popup')
+    onToast(`Derived ${parts.join(' · ')}.`)
   }
 
   const handleCalculate = () => {
@@ -270,38 +281,26 @@ export function ActualSessionPage({
           </button>
         </div>
         <p className="muted">
-          Fill starting/ending wallets and Total Kills, then use Derive Per Kill
-          to average rewards automatically. Longer clean windows are more precise
-          than a single kill popup.
+          Credit and Faction Coin use wallet point balances. EXP uses the HUD
+          percent bar (for example 30.1631%). EXP points for hourly rates still
+          come from the kill popup into EXP per Kill.
         </p>
         <div className="grid-2">
           <NumberField
             id="session-start-credit"
-            label="Starting Credit"
+            label="Starting Credit (points)"
             value={form.startingCredit}
             onChange={(v) => setForm((p) => ({ ...p, startingCredit: v }))}
           />
           <NumberField
             id="session-end-credit"
-            label="Ending Credit"
+            label="Ending Credit (points)"
             value={form.endingCredit}
             onChange={(v) => setForm((p) => ({ ...p, endingCredit: v }))}
           />
           <NumberField
-            id="session-start-exp"
-            label="Starting EXP"
-            value={form.startingExp}
-            onChange={(v) => setForm((p) => ({ ...p, startingExp: v }))}
-          />
-          <NumberField
-            id="session-end-exp"
-            label="Ending EXP"
-            value={form.endingExp}
-            onChange={(v) => setForm((p) => ({ ...p, endingExp: v }))}
-          />
-          <NumberField
             id="session-start-fc"
-            label="Starting Faction Coin"
+            label="Starting Faction Coin (points)"
             value={form.startingFactionCoin}
             onChange={(v) =>
               setForm((p) => ({ ...p, startingFactionCoin: v }))
@@ -309,9 +308,27 @@ export function ActualSessionPage({
           />
           <NumberField
             id="session-end-fc"
-            label="Ending Faction Coin"
+            label="Ending Faction Coin (points)"
             value={form.endingFactionCoin}
             onChange={(v) => setForm((p) => ({ ...p, endingFactionCoin: v }))}
+          />
+          <NumberField
+            id="session-start-exp-pct"
+            label="Starting EXP %"
+            value={form.startingExpPercent}
+            onChange={(v) => setForm((p) => ({ ...p, startingExpPercent: v }))}
+            mode="decimal"
+            placeholder="30.1631"
+            hint="HUD EXP bar percent"
+          />
+          <NumberField
+            id="session-end-exp-pct"
+            label="Ending EXP %"
+            value={form.endingExpPercent}
+            onChange={(v) => setForm((p) => ({ ...p, endingExpPercent: v }))}
+            mode="decimal"
+            placeholder="32.1631"
+            hint="HUD EXP bar percent after farming"
           />
         </div>
       </section>
@@ -431,9 +448,15 @@ export function ActualSessionPage({
               </p>
             </article>
             <article className="stat">
-              <h3>EXP Earned</h3>
+              <h3>EXP % Gained</h3>
               <p className="stat-value">
-                {formatInteger(sessionResults.expEarned)}
+                {formatDecimal(sessionResults.expPercentGained, 4)}%
+              </p>
+            </article>
+            <article className="stat">
+              <h3>EXP % per Kill</h3>
+              <p className="stat-value">
+                {formatDecimal(sessionResults.expPercentPerKill, 4)}%
               </p>
             </article>
             <article className="stat">

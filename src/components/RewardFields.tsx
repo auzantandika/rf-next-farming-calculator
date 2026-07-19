@@ -66,8 +66,8 @@ export function RewardFields({
             label="EXP per Kill"
             value={rewards.expPerKill}
             onChange={(v) => onRewardsChange({ ...rewards, expPerKill: v })}
-            placeholder="23,621"
-            hint="Accepts 23621, 23,621, 23.621, or 23 621"
+            placeholder="21,710"
+            hint="Kill popup points (e.g. 21,710), not the HUD EXP % bar"
           />
           <NumberField
             id={`${idPrefix}-fc`}

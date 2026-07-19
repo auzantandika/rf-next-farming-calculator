@@ -56,7 +56,8 @@ export function buildSessionSummary(
 
   lines.push(
     `Credit Earned: ${formatInteger(results.creditEarned)}`,
-    `EXP Earned: ${formatInteger(results.expEarned)}`,
+    `EXP % Gained: ${formatDecimal(results.expPercentGained, 4)}%`,
+    `EXP % per Kill: ${formatDecimal(results.expPercentPerKill, 4)}%`,
     `Faction Coin Earned: ${formatInteger(results.factionCoinEarned)}`,
     `Loot Value: ${formatInteger(results.lootValue)}`,
     `Net Credit: ${formatInteger(results.netCredit)}`,
