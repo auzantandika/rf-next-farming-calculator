@@ -31,6 +31,55 @@ export function effectiveExpPerKill(rewards: RewardInputs): number | null {
   return base * (1 + bonus / 100)
 }
 
+/** Average reward per kill from wallet deltas. More kills = more stable average. */
+export function derivePerKillFromTotals(
+  totalKills: number | null | undefined,
+  earned: {
+    creditEarned: number | null | undefined
+    expEarned: number | null | undefined
+    factionCoinEarned: number | null | undefined
+  },
+): {
+  creditPerKill: number | null
+  expPerKill: number | null
+  factionCoinPerKill: number | null
+  derivedCount: number
+} | null {
+  if (totalKills == null || !Number.isFinite(totalKills) || totalKills <= 0) {
+    return null
+  }
+
+  const average = (value: number | null | undefined): number | null => {
+    if (value == null || !Number.isFinite(value) || value < 0) return null
+    return Math.round(value / totalKills)
+  }
+
+  const creditPerKill = average(earned.creditEarned)
+  const expPerKill = average(earned.expEarned)
+  const factionCoinPerKill = average(earned.factionCoinEarned)
+  const derivedCount = [creditPerKill, expPerKill, factionCoinPerKill].filter(
+    (v) => v != null,
+  ).length
+
+  if (derivedCount === 0) return null
+
+  return {
+    creditPerKill,
+    expPerKill,
+    factionCoinPerKill,
+    derivedCount,
+  }
+}
+
+export function earnedDelta(
+  start: number | null | undefined,
+  end: number | null | undefined,
+): number | null {
+  if (start == null || end == null) return null
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null
+  return end - start
+}
+
 export function calculateRates(
   testData: TestDataInputs,
   rewards: RewardInputs,
@@ -143,15 +192,6 @@ export function lootValueTotal(drops: LootDrop[]): number {
     const unit = Number.isFinite(drop.unitValue) ? drop.unitValue : 0
     return sum + qty * unit
   }, 0)
-}
-
-function earnedDelta(
-  start: number | null | undefined,
-  end: number | null | undefined,
-): number | null {
-  if (start == null || end == null) return null
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null
-  return end - start
 }
 
 export function calculateSessionResults(

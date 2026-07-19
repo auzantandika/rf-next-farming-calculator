@@ -6,6 +6,8 @@ import { NumberField } from '../components/NumberField'
 import {
   calculateProjection,
   calculateRates,
+  derivePerKillFromTotals,
+  earnedDelta,
 } from '../lib/calculations'
 import { buildKpmSummary, copyText } from '../lib/copySummary'
 import { sampleKpmForm } from '../lib/sampleData'
@@ -36,6 +38,24 @@ const emptyForm: KpmFormState = {
   targetFactionCoin: null,
 }
 
+interface DeriveWallet {
+  startingCredit: number | null
+  endingCredit: number | null
+  startingExp: number | null
+  endingExp: number | null
+  startingFactionCoin: number | null
+  endingFactionCoin: number | null
+}
+
+const emptyWallet: DeriveWallet = {
+  startingCredit: null,
+  endingCredit: null,
+  startingExp: null,
+  endingExp: null,
+  startingFactionCoin: null,
+  endingFactionCoin: null,
+}
+
 interface KpmCalculatorPageProps {
   onSave: (session: SavedSession) => void
   onToast: (message: string) => void
@@ -43,6 +63,7 @@ interface KpmCalculatorPageProps {
 
 export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
   const [form, setForm] = useState<KpmFormState>(emptyForm)
+  const [wallet, setWallet] = useState<DeriveWallet>(emptyWallet)
   const [calculated, setCalculated] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -103,6 +124,38 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
     setCalculated(true)
   }
 
+  const handleDerivePerKill = () => {
+    const derived = derivePerKillFromTotals(form.totalKills, {
+      creditEarned: earnedDelta(wallet.startingCredit, wallet.endingCredit),
+      expEarned: earnedDelta(wallet.startingExp, wallet.endingExp),
+      factionCoinEarned: earnedDelta(
+        wallet.startingFactionCoin,
+        wallet.endingFactionCoin,
+      ),
+    })
+
+    if (!derived) {
+      onToast(
+        'Enter Total Kills plus starting/ending wallet values to derive per-kill rewards.',
+      )
+      return
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      creditPerKill: derived.creditPerKill ?? prev.creditPerKill,
+      expPerKill: derived.expPerKill ?? prev.expPerKill,
+      factionCoinPerKill:
+        derived.factionCoinPerKill ?? prev.factionCoinPerKill,
+      rewardsIncludeBuffs: true,
+      expBonusPercent: 0,
+    }))
+    setCalculated(false)
+    onToast(
+      `Derived ${derived.derivedCount} per-kill value(s) from session averages.`,
+    )
+  }
+
   const handleSave = () => {
     const nextRates = calculateRates(testData, rewards)
     if (!nextRates) {
@@ -140,6 +193,44 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
     onToast(ok ? 'Summary copied.' : 'Could not copy summary.')
   }
 
+  const actionButtons = (
+    <>
+      <button type="button" className="btn primary" onClick={handleCalculate}>
+        Calculate
+      </button>
+      <button type="button" className="btn" onClick={handleSave}>
+        Save Session
+      </button>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          setForm(emptyForm)
+          setWallet(emptyWallet)
+          setCalculated(false)
+          setError(null)
+        }}
+      >
+        Reset
+      </button>
+      <button type="button" className="btn" onClick={handleCopy}>
+        Copy Summary
+      </button>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          setForm(sampleKpmForm)
+          setCalculated(true)
+          setError(null)
+          onToast('Sample data loaded.')
+        }}
+      >
+        Use Sample Data
+      </button>
+    </>
+  )
+
   return (
     <div className="page">
       <header className="page-header">
@@ -150,40 +241,7 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
         </p>
       </header>
 
-      <div className="toolbar">
-        <button type="button" className="btn primary" onClick={handleCalculate}>
-          Calculate
-        </button>
-        <button type="button" className="btn" onClick={handleSave}>
-          Save Session
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => {
-            setForm(emptyForm)
-            setCalculated(false)
-            setError(null)
-          }}
-        >
-          Reset
-        </button>
-        <button type="button" className="btn" onClick={handleCopy}>
-          Copy Summary
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => {
-            setForm(sampleKpmForm)
-            setCalculated(true)
-            setError(null)
-            onToast('Sample data loaded.')
-          }}
-        >
-          Use Sample Data
-        </button>
-      </div>
+      <div className="toolbar">{actionButtons}</div>
 
       {error ? <p className="banner error" role="alert">{error}</p> : null}
 
@@ -199,6 +257,62 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
         onRewardsChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
         onTestDataChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
       />
+
+      <section className="panel">
+        <div className="panel-head">
+          <h2>Auto-Calc Per Kill</h2>
+          <button type="button" className="btn" onClick={handleDerivePerKill}>
+            Derive Per Kill
+          </button>
+        </div>
+        <p className="muted">
+          More precise than typing one kill by hand: note wallet before/after a
+          clean farm window, then divide by Total Kills. No game API required —
+          this app stays fully offline.
+        </p>
+        <div className="grid-2">
+          <NumberField
+            id="kpm-start-credit"
+            label="Starting Credit"
+            value={wallet.startingCredit}
+            onChange={(v) => setWallet((p) => ({ ...p, startingCredit: v }))}
+          />
+          <NumberField
+            id="kpm-end-credit"
+            label="Ending Credit"
+            value={wallet.endingCredit}
+            onChange={(v) => setWallet((p) => ({ ...p, endingCredit: v }))}
+          />
+          <NumberField
+            id="kpm-start-exp"
+            label="Starting EXP"
+            value={wallet.startingExp}
+            onChange={(v) => setWallet((p) => ({ ...p, startingExp: v }))}
+          />
+          <NumberField
+            id="kpm-end-exp"
+            label="Ending EXP"
+            value={wallet.endingExp}
+            onChange={(v) => setWallet((p) => ({ ...p, endingExp: v }))}
+          />
+          <NumberField
+            id="kpm-start-fc"
+            label="Starting Faction Coin"
+            value={wallet.startingFactionCoin}
+            onChange={(v) =>
+              setWallet((p) => ({ ...p, startingFactionCoin: v }))
+            }
+          />
+          <NumberField
+            id="kpm-end-fc"
+            label="Ending Faction Coin"
+            value={wallet.endingFactionCoin}
+            onChange={(v) =>
+              setWallet((p) => ({ ...p, endingFactionCoin: v }))
+            }
+          />
+        </div>
+      </section>
 
       <section className="panel">
         <h2>Farming Projection</h2>
@@ -246,6 +360,10 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
         projection={projection}
         projectionMinutes={form.projectionMinutes}
       />
+
+      <div className="bottom-actions" aria-label="Bottom actions">
+        <div className="toolbar">{actionButtons}</div>
+      </div>
     </div>
   )
 }

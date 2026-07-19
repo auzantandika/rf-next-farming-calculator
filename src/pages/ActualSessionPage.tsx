@@ -7,6 +7,8 @@ import {
   VERIFICATION_LABELS,
   calculateRates,
   calculateSessionResults,
+  derivePerKillFromTotals,
+  earnedDelta,
 } from '../lib/calculations'
 import { buildSessionSummary, copyText } from '../lib/copySummary'
 import { formatInteger } from '../lib/numbers'
@@ -102,6 +104,38 @@ export function ActualSessionPage({
     ? calculateSessionResults(testData, rewards, sessionCosts)
     : null
 
+  const handleDerivePerKill = () => {
+    const derived = derivePerKillFromTotals(form.totalKills, {
+      creditEarned: earnedDelta(form.startingCredit, form.endingCredit),
+      expEarned: earnedDelta(form.startingExp, form.endingExp),
+      factionCoinEarned: earnedDelta(
+        form.startingFactionCoin,
+        form.endingFactionCoin,
+      ),
+    })
+
+    if (!derived) {
+      onToast(
+        'Enter Total Kills plus starting/ending wallet values to derive per-kill rewards.',
+      )
+      return
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      creditPerKill: derived.creditPerKill ?? prev.creditPerKill,
+      expPerKill: derived.expPerKill ?? prev.expPerKill,
+      factionCoinPerKill:
+        derived.factionCoinPerKill ?? prev.factionCoinPerKill,
+      rewardsIncludeBuffs: true,
+      expBonusPercent: 0,
+    }))
+    setShowResults(false)
+    onToast(
+      `Derived ${derived.derivedCount} per-kill value(s) from session averages.`,
+    )
+  }
+
   const handleCalculate = () => {
     const nextRates = calculateRates(testData, rewards)
     if (!nextRates) {
@@ -166,6 +200,9 @@ export function ActualSessionPage({
         <button type="button" className="btn primary" onClick={handleCalculate}>
           Calculate
         </button>
+        <button type="button" className="btn" onClick={handleDerivePerKill}>
+          Derive Per Kill
+        </button>
         <button type="button" className="btn" onClick={handleSave}>
           Save Session
         </button>
@@ -226,7 +263,17 @@ export function ActualSessionPage({
       />
 
       <section className="panel">
-        <h2>Wallet Totals</h2>
+        <div className="panel-head">
+          <h2>Wallet Totals</h2>
+          <button type="button" className="btn" onClick={handleDerivePerKill}>
+            Derive Per Kill
+          </button>
+        </div>
+        <p className="muted">
+          Fill starting/ending wallets and Total Kills, then use Derive Per Kill
+          to average rewards automatically. Longer clean windows are more precise
+          than a single kill popup.
+        </p>
         <div className="grid-2">
           <NumberField
             id="session-start-credit"
@@ -422,6 +469,24 @@ export function ActualSessionPage({
           </div>
         </section>
       ) : null}
+
+      <div className="bottom-actions" aria-label="Bottom actions">
+        <div className="toolbar">
+          <button
+            type="button"
+            className="btn primary"
+            onClick={handleCalculate}
+          >
+            Calculate
+          </button>
+          <button type="button" className="btn" onClick={handleDerivePerKill}>
+            Derive Per Kill
+          </button>
+          <button type="button" className="btn" onClick={handleSave}>
+            Save Session
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

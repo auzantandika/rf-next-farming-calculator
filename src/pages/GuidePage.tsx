@@ -60,6 +60,29 @@ export function GuidePage() {
       </section>
 
       <section className="panel">
+        <h2>Getting Per-Kill Values</h2>
+        <ul className="detail-list">
+          <li>
+            <strong>Manual</strong> — read Credit / EXP / Faction Coin from one
+            kill popup. Fast, but one kill can be off if rewards vary.
+          </li>
+          <li>
+            <strong>Derive Per Kill (recommended)</strong> — note Starting and
+            Ending wallet values for a clean farm window, enter Total Kills, then
+            press Derive Per Kill. The app fills averages as earned ÷ kills.
+          </li>
+          <li>
+            There is no free official RF Online Next API for live monster tables,
+            so this calculator stays offline and uses your measured session data.
+          </li>
+          <li>
+            Longer clean windows (more kills, same monster type) give a more
+            stable average than a single kill.
+          </li>
+        </ul>
+      </section>
+
+      <section className="panel">
         <h2>Actual Session Checks</h2>
         <ul className="detail-list">
           <li>
