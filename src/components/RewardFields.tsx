@@ -7,6 +7,8 @@ interface RewardFieldsProps {
   onRewardsChange: (next: RewardInputs) => void
   onTestDataChange: (next: TestDataInputs) => void
   idPrefix: string
+  /** Show only test timing, only reward fields, or both (default). */
+  show?: 'all' | 'test' | 'rewards'
 }
 
 export function RewardFields({
@@ -15,9 +17,14 @@ export function RewardFields({
   onRewardsChange,
   onTestDataChange,
   idPrefix,
+  show = 'all',
 }: RewardFieldsProps) {
+  const showTest = show === 'all' || show === 'test'
+  const showRewards = show === 'all' || show === 'rewards'
+
   return (
     <>
+      {showTest ? (
       <section className="panel">
         <h2>Test Data</h2>
         <div className="grid-3">
@@ -48,7 +55,9 @@ export function RewardFields({
           the most accurate Kill per Minute.
         </p>
       </section>
+      ) : null}
 
+      {showRewards ? (
       <section className="panel">
         <h2>Rewards</h2>
         <div className="grid-2">
@@ -106,6 +115,7 @@ export function RewardFields({
           <span>Rewards Already Include Buffs</span>
         </label>
       </section>
+      ) : null}
     </>
   )
 }

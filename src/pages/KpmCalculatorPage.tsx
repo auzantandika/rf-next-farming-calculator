@@ -1,17 +1,16 @@
 import { useMemo, useState } from 'react'
 import { ResultsCards } from '../components/ResultsCards'
 import { RewardFields } from '../components/RewardFields'
+import { SessionMeasuredCards } from '../components/SessionMeasuredCards'
 import { SpotFields } from '../components/SpotFields'
 import { NumberField } from '../components/NumberField'
 import {
   calculateProjection,
   calculateRates,
-  deriveHudPercentPerKill,
-  derivePerKillFromTotals,
-  earnedDelta,
+  measureSessionRates,
+  type MeasuredSessionRates,
 } from '../lib/calculations'
 import { buildKpmSummary, copyText } from '../lib/copySummary'
-import { formatDecimal } from '../lib/numbers'
 import { sampleKpmForm } from '../lib/sampleData'
 import { newId } from '../lib/storage'
 import type { KpmFormState, SavedSession } from '../types'
@@ -66,12 +65,7 @@ interface KpmCalculatorPageProps {
 export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
   const [form, setForm] = useState<KpmFormState>(emptyForm)
   const [wallet, setWallet] = useState<DeriveWallet>(emptyWallet)
-  const [expPercentPerKill, setExpPercentPerKill] = useState<number | null>(
-    null,
-  )
-  const [contributionPercentPerKill, setContributionPercentPerKill] = useState<
-    number | null
-  >(null)
+  const [measured, setMeasured] = useState<MeasuredSessionRates | null>(null)
   const [calculated, setCalculated] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -119,62 +113,41 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
       })
     : null
 
-  const handleCalculate = () => {
-    const next = calculateRates(testData, rewards)
-    if (!next) {
+  const applyMeasuredAndCalculate = () => {
+    const sessionMeasured = measureSessionRates(testData, wallet)
+    const nextRewards = {
+      ...rewards,
+      creditPerKill:
+        sessionMeasured?.creditPerKill ?? rewards.creditPerKill,
+      rewardsIncludeBuffs: true,
+    }
+
+    const nextRates = calculateRates(testData, nextRewards)
+    if (!nextRates && !sessionMeasured) {
       setCalculated(false)
+      setMeasured(null)
       setError(
-        'Enter a valid Farming Duration and Total Kills greater than zero.',
-      )
-      return
-    }
-    setError(null)
-    setCalculated(true)
-  }
-
-  const handleDerivePerKill = () => {
-    const derived = derivePerKillFromTotals(form.totalKills, {
-      creditEarned: earnedDelta(wallet.startingCredit, wallet.endingCredit),
-    })
-    const expPct = deriveHudPercentPerKill(
-      form.totalKills,
-      wallet.startingExpPercent,
-      wallet.endingExpPercent,
-    )
-    const contributionPct = deriveHudPercentPerKill(
-      form.totalKills,
-      wallet.startingContributionPercent,
-      wallet.endingContributionPercent,
-    )
-
-    if (!derived && expPct == null && contributionPct == null) {
-      onToast(
-        'Enter Total Kills plus Credit points, and/or EXP % / Contribution % before and after.',
+        'Enter Farming Duration and Total Kills, plus rewards and/or Auto-Calc start/end values.',
       )
       return
     }
 
-    if (derived) {
+    if (sessionMeasured?.creditPerKill != null) {
       setForm((prev) => ({
         ...prev,
-        creditPerKill: derived.creditPerKill ?? prev.creditPerKill,
+        creditPerKill: sessionMeasured.creditPerKill,
         rewardsIncludeBuffs: true,
-        expBonusPercent: 0,
       }))
     }
 
-    setExpPercentPerKill(expPct)
-    setContributionPercentPerKill(contributionPct)
-    setCalculated(false)
-
-    const parts: string[] = []
-    if (derived) parts.push('Credit average')
-    if (expPct != null) parts.push(`${formatDecimal(expPct, 4)}% EXP/kill`)
-    if (contributionPct != null) {
-      parts.push(`${formatDecimal(contributionPct, 4)}% Contribution/kill`)
-    }
-    parts.push('EXP & Faction Coin points still come from the kill popup')
-    onToast(`Derived ${parts.join(' · ')}.`)
+    setMeasured(sessionMeasured)
+    setError(null)
+    setCalculated(!!nextRates)
+    onToast(
+      sessionMeasured
+        ? 'Session measured. Scroll down for Measured from This Session + Results.'
+        : 'Calculated from kill-popup rewards.',
+    )
   }
 
   const handleSave = () => {
@@ -216,7 +189,11 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
 
   const actionButtons = (
     <>
-      <button type="button" className="btn primary" onClick={handleCalculate}>
+      <button
+        type="button"
+        className="btn primary"
+        onClick={applyMeasuredAndCalculate}
+      >
         Calculate
       </button>
       <button type="button" className="btn" onClick={handleSave}>
@@ -228,8 +205,7 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
         onClick={() => {
           setForm(emptyForm)
           setWallet(emptyWallet)
-          setExpPercentPerKill(null)
-          setContributionPercentPerKill(null)
+          setMeasured(null)
           setCalculated(false)
           setError(null)
         }}
@@ -245,6 +221,7 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
         onClick={() => {
           setForm(sampleKpmForm)
           setCalculated(true)
+          setMeasured(null)
           setError(null)
           onToast('Sample data loaded.')
         }}
@@ -259,8 +236,8 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
       <header className="page-header">
         <h1>KPM Calculator</h1>
         <p>
-          Measure Kill per Minute, then project EXP, Credit, and Faction Coin
-          income for any farming spot.
+          Fill Test Data + Auto-Calc (and kill-popup rewards), then press
+          Calculate to see measured session rates and hourly projections.
         </p>
       </header>
 
@@ -273,8 +250,10 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
         value={spot}
         onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
       />
+
       <RewardFields
         idPrefix="kpm"
+        show="test"
         rewards={rewards}
         testData={testData}
         onRewardsChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
@@ -284,15 +263,19 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
       <section className="panel">
         <div className="panel-head">
           <h2>Auto-Calc Per Kill</h2>
-          <button type="button" className="btn" onClick={handleDerivePerKill}>
-            Derive Per Kill
+          <button
+            type="button"
+            className="btn primary"
+            onClick={applyMeasuredAndCalculate}
+          >
+            Calculate
           </button>
         </div>
         <p className="muted">
-          Credit uses wallet <strong>point</strong> totals. EXP and Contribution
-          use HUD <strong>percent</strong> bars (for example Contribution Lv.
-          58(35.5%)). For hourly EXP / Faction Coin rates, copy kill-popup
-          points into EXP per Kill and Faction Coin per Kill.
+          After a farm window (for example 5 minutes), enter start/end values
+          below, keep Test Data filled, then press Calculate. The app shows
+          Credit earned / hour from your wallet and EXP / Contribution % rates
+          from the HUD bars.
         </p>
         <div className="grid-2">
           <NumberField
@@ -352,19 +335,16 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
             hint="Same Contribution bar after farming"
           />
         </div>
-        {expPercentPerKill != null || contributionPercentPerKill != null ? (
-          <p className="banner notice-inline">
-            {expPercentPerKill != null
-              ? `EXP bar: ${formatDecimal(expPercentPerKill, 4)}%/kill. `
-              : null}
-            {contributionPercentPerKill != null
-              ? `Contribution bar: ${formatDecimal(contributionPercentPerKill, 4)}%/kill. `
-              : null}
-            Percent bars do not fill popup point fields — use the kill popup for
-            EXP per Kill and Faction Coin per Kill.
-          </p>
-        ) : null}
       </section>
+
+      <RewardFields
+        idPrefix="kpm"
+        show="rewards"
+        rewards={rewards}
+        testData={testData}
+        onRewardsChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+        onTestDataChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+      />
 
       <section className="panel">
         <h2>Farming Projection</h2>
@@ -406,6 +386,8 @@ export function KpmCalculatorPage({ onSave, onToast }: KpmCalculatorPageProps) {
           />
         </div>
       </section>
+
+      <SessionMeasuredCards measured={measured} />
 
       <ResultsCards
         rates={rates}

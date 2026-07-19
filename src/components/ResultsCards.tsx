@@ -21,8 +21,8 @@ export function ResultsCards({
       <section className="panel">
         <h2>Results</h2>
         <p className="empty-state">
-          Enter Farming Duration and Total Kills, then press Calculate to see
-          Kill per Minute and hourly projections.
+          Fill Test Data, Auto-Calc start/end values, and kill-popup rewards,
+          then press Calculate to see measured session rates and hourly results.
         </p>
       </section>
     )

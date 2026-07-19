@@ -77,6 +77,96 @@ export function deriveHudPercentPerKill(
   return Number.isFinite(perKill) ? perKill : null
 }
 
+export interface MeasuredSessionRates {
+  durationMinutes: number
+  creditEarned: number | null
+  creditPerKill: number | null
+  creditPerHour: number | null
+  expPercentGained: number | null
+  expPercentPerKill: number | null
+  expPercentPerHour: number | null
+  contributionPercentGained: number | null
+  contributionPercentPerKill: number | null
+  contributionPercentPerHour: number | null
+}
+
+function ratePerHour(
+  gained: number | null,
+  durationMinutes: number,
+): number | null {
+  if (gained == null || !Number.isFinite(gained) || durationMinutes <= 0) {
+    return null
+  }
+  const value = (gained / durationMinutes) * 60
+  return Number.isFinite(value) ? value : null
+}
+
+/** Rates measured from start/end session values + farm duration (more accurate than one popup). */
+export function measureSessionRates(
+  testData: TestDataInputs,
+  session: {
+    startingCredit: number | null | undefined
+    endingCredit: number | null | undefined
+    startingExpPercent: number | null | undefined
+    endingExpPercent: number | null | undefined
+    startingContributionPercent: number | null | undefined
+    endingContributionPercent: number | null | undefined
+  },
+): MeasuredSessionRates | null {
+  const durationMinutes = durationMinutesFromParts(
+    testData.minutes,
+    testData.seconds,
+  )
+  if (durationMinutes == null || durationMinutes <= 0) return null
+
+  const creditEarned = earnedDelta(
+    session.startingCredit,
+    session.endingCredit,
+  )
+  const expPercentGained = earnedDelta(
+    session.startingExpPercent,
+    session.endingExpPercent,
+  )
+  const contributionPercentGained = earnedDelta(
+    session.startingContributionPercent,
+    session.endingContributionPercent,
+  )
+
+  const hasAny =
+    creditEarned != null ||
+    expPercentGained != null ||
+    contributionPercentGained != null
+  if (!hasAny) return null
+
+  const creditPerKill =
+    derivePerKillFromTotals(testData.totalKills, { creditEarned })
+      ?.creditPerKill ?? null
+
+  return {
+    durationMinutes,
+    creditEarned,
+    creditPerKill,
+    creditPerHour: ratePerHour(creditEarned, durationMinutes),
+    expPercentGained,
+    expPercentPerKill: deriveHudPercentPerKill(
+      testData.totalKills,
+      session.startingExpPercent,
+      session.endingExpPercent,
+    ),
+    expPercentPerHour: ratePerHour(expPercentGained, durationMinutes),
+    contributionPercentGained,
+    contributionPercentPerKill: deriveHudPercentPerKill(
+      testData.totalKills,
+      session.startingContributionPercent,
+      session.endingContributionPercent,
+    ),
+    contributionPercentPerHour: ratePerHour(
+      contributionPercentGained,
+      durationMinutes,
+    ),
+  }
+}
+
 export function earnedDelta(
   start: number | null | undefined,
   end: number | null | undefined,
